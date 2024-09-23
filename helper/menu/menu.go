@@ -2,6 +2,7 @@ package menu
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -14,44 +15,60 @@ import (
 
 // Mengecek apakah pesan adalah nomor menu, jika nomor menu maka akan mengubahnya menjadi keyword
 func MenuSessionHandler(msg *itmodel.IteungMessage, db *mongo.Database) string {
-	//check apakah nomor adalah admin atau user untuk menentukan startmenu
+	// check apakah nomor adalah admin atau user untuk menentukan startmenu
 	var startmenu string
 	if !tiket.IsAdmin(msg.Phone_number, db) {
 		startmenu = "menu"
 	} else {
 		startmenu = "adminmenu"
 	}
-	//check apakah ada session, klo ga ada insert sesssion baru
+	fmt.Println("Startmenu determined:", startmenu) // Debugging startmenu
+
+	// check apakah ada session, klo ga ada insert session baru
 	Sesdoc, ses, err := CheckSession(msg.Phone_number, db)
 	if err != nil {
+		fmt.Println("Error checking session:", err) // Debug error check session
 		return err.Error()
 	}
-	if !ses { //jika tidak ada session atau session=false maka return menu utama user dan update session isi list nomor menunya
+	fmt.Println("Session exists:", ses, "Session document:", Sesdoc) // Debug session state and document
+
+	if !ses { // jika tidak ada session atau session=false maka return menu utama user dan update session isi list nomor menunya
 		reply, err := GetMenuFromKeywordAndSetSession(startmenu, Sesdoc, db)
 		if err != nil {
+			fmt.Println("Error getting menu from keyword:", err) // Debug error in menu retrieval
 			return err.Error()
 		}
+		fmt.Println("Reply on new session:", reply) // Debug reply from the new session setup
 		return reply
-
 	}
-	//jika ada session maka cek menu
-	//check apakah pesan integer
+
+	// jika ada session maka cek menu
+	fmt.Println("Existing session found, checking menu") // Debug existing session found
+
+	// check apakah pesan integer
 	menuno, err := strconv.Atoi(msg.Message)
-	if err == nil { //kalo pesan adalah nomor
-		for _, menu := range Sesdoc.Menulist { //loping di menu list dari session
-			if menuno == menu.No { //jika nomor menu sama dengan nomor yang ada di pesan
-				reply, err := GetMenuFromKeywordAndSetSession(menu.Keyword, Sesdoc, db) //check apakah ada menu dengan keyword dari nomor menu
+	if err == nil { // kalo pesan adalah nomor
+		fmt.Println("Message is a valid number:", menuno) // Debug if message is a valid number
+		for _, menu := range Sesdoc.Menulist {            // looping di menu list dari session
+			fmt.Println("Checking menu number:", menu.No, "with keyword:", menu.Keyword) // Debug each menu item in session
+
+			if menuno == menu.No { // jika nomor menu sama dengan nomor yang ada di pesan
+				fmt.Println("Menu number matches:", menuno) // Debug when menu number matches
+				reply, err := GetMenuFromKeywordAndSetSession(menu.Keyword, Sesdoc, db)
 				if err != nil {
-					//jika di collection menu tidak ada menu dengan keyword tersebut maka kita kembalikan keyword tersebut untuk di proses ke langkah selanjutnya
+					fmt.Println("Error getting menu for keyword:", menu.Keyword) // Debug error for keyword menu retrieval
 					msg.Message = menu.Keyword
 					return ""
 				}
+				fmt.Println("Reply for matching menu:", reply) // Debug reply after matching menu
 				return reply
 			}
 		}
+		fmt.Println("Menu number not found:", menuno) // Debug if menu number not found
 		return "Mohon maaf nomor menu yang anda masukkan tidak ada di daftar menu"
 	}
-	//kalo pesan bukan nomor return kosong
+	fmt.Println("Message is not a valid number:", msg.Message) // Debug if message is not a number
+	// kalo pesan bukan nomor return kosong
 	return ""
 }
 
